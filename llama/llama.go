@@ -10,6 +10,11 @@ package llama
 #cgo CPPFLAGS: -I${SRCDIR}/llama.cpp/tools/mtmd
 #cgo CPPFLAGS: -I${SRCDIR}/llama.cpp/src
 #cgo CPPFLAGS: -I${SRCDIR}/../ml/backend/ggml/ggml/include
+#cgo LDFLAGS: -L$INTEL_OPENVINO_DIR/runtime/lib/intel64 -lopenvino -L${SRCDIR}/../build/lib/ollama -lggml-openvino -lstdc++
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdlib.h>
 #include "ggml.h"
@@ -20,8 +25,26 @@ package llama
 
 #include "sampling_ext.h"
 
+#ifdef __cplusplus
+}
+#endif
+
+// C++ only
+#ifdef __cplusplus
+#include "ggml-openvino.hpp"
+#endif
+
 extern bool llamaProgressCallback(float progress, void *user_data);
 extern void llamaLog(int level, char* text, void* user_data);
+
+void force_link_openvino();
+typedef int ggml_backend_type;
+
+#define GGML_BACKEND_CPU 0
+#define GGML_BACKEND_CUDA 1
+#define GGML_BACKEND_OPENCL 2
+#define GGML_BACKEND_OPENVINO 3
+
 */
 import "C"
 
@@ -59,6 +82,7 @@ func llamaLog(level C.int, text *C.char, _ unsafe.Pointer) {
 
 func BackendInit() {
 	ggml.OnceLoad()
+        C.force_link_openvino()
 	C.llama_backend_init()
 }
 
@@ -102,6 +126,9 @@ func GetModelArch(modelPath string) (string, error) {
 
 type ContextParams struct {
 	c C.struct_llama_context_params
+        BackendType   C.ggml_backend_type
+        DeviceIndex   int
+
 }
 
 func NewContextParams(numCtx int, batchSize int, numSeqMax int, threads int, flashAttention bool, kvCacheType string) ContextParams {
@@ -116,7 +143,8 @@ func NewContextParams(numCtx int, batchSize int, numSeqMax int, threads int, fla
 	params.type_k = kvCacheTypeFromStr(strings.ToLower(kvCacheType))
 	params.type_v = kvCacheTypeFromStr(strings.ToLower(kvCacheType))
 
-	return ContextParams{c: params}
+	return ContextParams{c: params, BackendType: C.GGML_BACKEND_OPENVINO, DeviceIndex: 0}
+
 }
 
 // kvCacheTypeFromStr converts a string cache type to the corresponding GGML type value

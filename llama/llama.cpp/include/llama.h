@@ -306,6 +306,9 @@ extern "C" {
         enum llama_pooling_type      pooling_type;      // whether to pool (sum) embedding results by sequence id
         enum llama_attention_type    attention_type;    // attention type to use for embeddings
 
+        int backend_type;
+        int device_index;
+
         // ref: https://github.com/ggml-org/llama.cpp/pull/2054
         float    rope_freq_base;   // RoPE base frequency, 0 = from model
         float    rope_freq_scale;  // RoPE frequency scaling factor, 0 = from model

@@ -3,6 +3,8 @@
 #include "ggml.h"
 #include "ggml-alloc.h"
 
+#define GGML_BACKEND_OPENVINO 3
+
 #ifdef GGML_BACKEND_SHARED
 #    if defined(_WIN32) && !defined(__MINGW32__)
 #        ifdef GGML_BACKEND_BUILD
@@ -134,7 +136,8 @@ extern "C" {
         // GPU device using dedicated memory
         GGML_BACKEND_DEVICE_TYPE_GPU,
         // accelerator devices intended to be used together with the CPU backend (e.g. BLAS or AMX)
-        GGML_BACKEND_DEVICE_TYPE_ACCEL
+        GGML_BACKEND_DEVICE_TYPE_ACCEL,
+        GGML_BACKEND_DEVICE_TYPE_OPENVINO
     };
 
     // functionality supported by the device

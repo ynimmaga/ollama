@@ -7,10 +7,13 @@
 #include "llama-mmap.h"
 #include "llama-model.h"
 
+#include "ggml-openvino.h"
+
 #include <cinttypes>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
+#include <iostream>
 
 //
 // llama_context
@@ -159,7 +162,7 @@ llama_context::llama_context(
             }
             backends.emplace_back(backend);
         }
-
+       
         // add ACCEL backends (such as BLAS)
         for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
             ggml_backend_dev_t dev = ggml_backend_dev_get(i);
@@ -172,12 +175,37 @@ llama_context::llama_context(
             }
         }
 
+        // add OpenVINO backend if requested
+	if (params.backend_type == GGML_BACKEND_OPENVINO) {
+            std::cout << "In params openvino backend type" << std::endl;
+    	    //ggml_backend_t backend_ov = ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_OPENVINO, nullptr);
+            ggml_backend_t backend_ov = ggml_backend_openvino_init(0);
+            std::cout << "After init by type" << std::endl;
+    	    if (backend_ov == nullptr) {
+                std::cout << "Backend is null ptr" << std::endl;
+                throw std::runtime_error("failed to initialize OpenVINO backend");
+            }
+            backends.emplace_back(backend_ov);
+        } else {
+    	// default: CPU
+            std::cout << "Not in params openvino backend" << std::endl;
+    	    backend_cpu = ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_CPU, nullptr);
+    	    if (backend_cpu == nullptr) {
+                 throw std::runtime_error("failed to initialize CPU backend");
+            }
+            backends.emplace_back(backend_cpu);
+        }
+
+        std::cout << "After openvino backend if else" << std::endl;
+        
+        /*
         // add CPU backend
         backend_cpu = ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_CPU, nullptr);
         if (backend_cpu == nullptr) {
             throw std::runtime_error("failed to initialize CPU backend");
         }
         backends.emplace_back(backend_cpu);
+        */
 
         // create a list of the set_n_threads functions in the backends
         for (auto & backend : backends) {
@@ -2247,6 +2275,8 @@ llama_context_params llama_context_default_params() {
         /*.rope_scaling_type           =*/ LLAMA_ROPE_SCALING_TYPE_UNSPECIFIED,
         /*.pooling_type                =*/ LLAMA_POOLING_TYPE_UNSPECIFIED,
         /*.attention_type              =*/ LLAMA_ATTENTION_TYPE_UNSPECIFIED,
+        /*.backend_type                =*/ GGML_BACKEND_DEVICE_TYPE_OPENVINO,
+        /*.device_index                =*/ 0,
         /*.rope_freq_base              =*/ 0.0f,
         /*.rope_freq_scale             =*/ 0.0f,
         /*.yarn_ext_factor             =*/ -1.0f,
