@@ -63,6 +63,7 @@ git switch poc_openvino_backend
 cmake .. -DGGML_OPENVINO=ON -DBUILD_SHARED_LIBS=ON
 make -j8
 export LD_LIBRARY_PATH=$PWD/lib/ollama:$LD_LIBRARY_PATH
+export CGO_LDFLAGS="-L$INTEL_OPENVINO_DIR/runtime/lib/intel64"
 ```
 ### Build Ollama
 
@@ -83,30 +84,7 @@ wget https://huggingface.co/MaziyarPanahi/Llama-3.2-1B-Instruct-GGUF/resolve/mai
 
 ## Create Modelfile and add the below text:
 ```bash
-# 1. Reference the local model file
 FROM ./Llama-3.2-1B-Instruct.fp16.gguf
-
-# 2. Set the default max tokens to generate (from your -n 50 argument)
-PARAMETER num_predict 50
-
-# 3. Define the official prompt template for Llama 3.2 Instruct
-TEMPLATE """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-
-{{ .System }}<|eot_id|><|start_header_id|>user<|end_header_id|>
-
-{{ .Prompt }}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-
-"""
-
-# 4. Set a default system message
-SYSTEM """You are a helpful AI assistant."""
-
-# 5. Define the model's special stop tokens
-PARAMETER stop "<|eot_id|>"
-PARAMETER stop "<|end_of_text|>"
-
-# 6. Set the context window size
-PARAMETER num_ctx 4096
 ```
 ## Start Ollama server and run inference
 
