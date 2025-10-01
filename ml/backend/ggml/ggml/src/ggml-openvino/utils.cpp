@@ -6,6 +6,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <iomanip>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <openvino/core/any.hpp>
@@ -84,6 +86,11 @@ enum ggml_status openvino_frontend_compute(ggml_backend_t backend, struct ggml_c
         };
     }
 
+    if (getenv("GGML_OPENVINO_DUMP_CGRAPH")) {
+        std::string filename = "cgraph.txt";
+        GgmlOvDecoder::dump_cgraph(cgraph, filename);
+    }
+
     if (is_naive(cgraph)) {
         return naive_compute(cgraph, core, device, config);
     }
@@ -130,7 +137,7 @@ enum ggml_status openvino_frontend_compute(ggml_backend_t backend, struct ggml_c
             compile_end_time = conversion_end_time;
         } else {
             std::shared_ptr<ov::Model> model;
-            auto model_weights = GgmlOvDecoder::create_weight_nodes(cgraph);
+            auto model_weights = GgmlOvDecoder::create_weight_nodes(cgraph, get_types_to_requant(device));
 
             if (is_static) {
                 ggml_decoder = std::make_shared<GgmlOvDecoder>(cgraph, model_weights, is_static, true);
@@ -216,7 +223,7 @@ enum ggml_status openvino_frontend_compute(ggml_backend_t backend, struct ggml_c
 
     auto gguf_tensor_addrs = get_ggml_graph_output_dst(ggml_decoder);
     for (size_t i = 0; i < ov_output_names.size(); i++) {
-        auto result_name = ov_output_names[i];
+        auto& result_name = ov_output_names[i];
         const auto output_tensor = infer_request.get_output_tensor(i);
 
         std::memcpy(gguf_tensor_addrs[result_name], output_tensor.data(), output_tensor.get_byte_size());
@@ -241,28 +248,51 @@ enum ggml_status openvino_frontend_compute(ggml_backend_t backend, struct ggml_c
     GGML_UNUSED(backend);
 }
 
-ov::AnyMap get_npu_prefill_config() {
-    ov::AnyMap config = {
+namespace {
+ov::AnyMap get_npu_base_config() {
+    return {
         {"NPU_COMPILATION_MODE_PARAMS",       "compute-layers-with-higher-precision=Sqrt,Power,ReduceMean,Add_RMSNorm"  },
         {"NPU_COMPILER_DYNAMIC_QUANTIZATION", "YES"                                                                     },
         {"NPU_USE_NPUW",                      "YES"                                                                     },
-        {"NPUW_DEVICES",                      "CPU"                                                                     },
+        {"NPUW_DEVICES",                      "NPU"                                                                     },
         {"NPUW_FOLD",                         "YES"                                                                     },
         {"NPUW_WEIGHTS_BANK",                 "shared"                                                                  },
-        {"NPUW_SLICE_OUT",                    "YES"                                                                     },
-        {"NPUW_FUNCALL_ASYNC",                "YES"                                                                     },
         {"NPUW_FUNCALL_FOR_ALL",              "YES"                                                                     },
+        {"NPUW_FUNCALL_ASYNC",                "YES"                                                                     },
         {"NPUW_DQ",                           "YES"                                                                     },
         {"NPUW_DQ_FULL",                      "NO"                                                                      },
         {"NPUW_CACHE_DIR",                    getenv("GGML_OPENVINO_CACHE_DIR") ? getenv("GGML_OPENVINO_CACHE_DIR") : ""},
     };
+}
+}  // namespace
+
+ov::AnyMap get_npu_prefill_config() {
+    auto config = get_npu_base_config();
     return config;
 }
 
 ov::AnyMap get_npu_generate_config() {
-    ov::AnyMap config = get_npu_prefill_config();
-    config.emplace("NPUW_UNFOLD_IREQS", "YES");
+    auto config = get_npu_base_config();
     return config;
+}
+
+std::map<ggml_type, ExtraQuantType> get_types_to_requant(const std::string& device) {
+    if (device == "NPU") {
+        return {
+            {GGML_TYPE_Q4_0, ExtraQuantType::Q4_0_128},
+            {GGML_TYPE_Q4_1, ExtraQuantType::Q4_0_128},
+            {GGML_TYPE_Q4_K, ExtraQuantType::Q4_0_128},
+            {GGML_TYPE_Q6_K, ExtraQuantType::F16     },
+            {GGML_TYPE_Q5_K, ExtraQuantType::F16     },
+        };
+    }
+    if (device == "GPU") {
+        return {
+            // gs16 is WIP
+            {GGML_TYPE_Q6_K, ExtraQuantType::Q8_0_32},
+        };
+    }
+    return {};
 }
 
 bool is_naive(struct ggml_cgraph* cgraph) {
@@ -281,10 +311,14 @@ enum ggml_status naive_compute(struct ggml_cgraph* cgraph,
         return GGML_STATUS_FAILED;
     }
 
-    auto decoder = std::make_shared<GgmlOvDecoder>(cgraph);
+    auto model_weights = GgmlOvDecoder::create_weight_nodes(cgraph);
+    auto decoder = std::make_shared<GgmlOvDecoder>(cgraph, model_weights);
     auto input_model = std::make_shared<ov::frontend::ggml::InputModel>(decoder);
     auto naive = true;
     auto model = ov::frontend::ggml::FrontEnd::convert(input_model, naive);
+    if (getenv("GGML_OPENVINO_DUMP_IR")) {
+        ov::serialize(model, "IR_naive.xml");
+    }
     auto infer_request = core.compile_model(model, device, config).create_infer_request();
 
     auto ov_params = model->get_parameters();
@@ -331,7 +365,7 @@ ov::Tensor get_ov_input_tensor(std::shared_ptr<GgmlOvDecoder> ggml_decoder, cons
                 input_tensor = convert_ggml_input_to_ov(ggml_decoder, param_name);
             }
 
-        } else if (param_name == "KQ_mask") {
+        } else if (param_name.find("KQ_mask") == 0) {
             size_t context_size = ggml_decoder->get_context_size();
             const auto* input_tensor_ggml = ggml_decoder->get_input_ggml_tensor(param_name);
             if (is_first_token) {
@@ -350,7 +384,7 @@ ov::Tensor get_ov_input_tensor(std::shared_ptr<GgmlOvDecoder> ggml_decoder, cons
 
         } else if (const auto* op = ggml_decoder->get_tensor_used_op(ggml_decoder->get_tensor_from_name(param_name));
                    op && op->op == GGML_OP_SET_ROWS && is_static && is_first_token) {
-            input_tensor = ov::Tensor(ov::element::i64, ov::Shape{1});
+            input_tensor = ov::Tensor(ov::element::i64, ov::Shape{1, 1, 1});
         } else {
             input_tensor = convert_ggml_input_to_ov(ggml_decoder, param_name);
         }
@@ -400,17 +434,50 @@ void print_output_tensor_info(const std::string& name, const ov::Tensor& tensor,
                               std::map<std::string, void*>& output_dst) {
     std::cout << "Output name: " << name << ", Output shape: " << tensor.get_shape()
               << ", Address: " << output_dst[name] << std::endl;
+
+    auto print_float_stats = [](const std::string& type_name, size_t size, auto get_value) {
+        if (size == 0) {
+            return;
+        }
+
+        float first = get_value(0);
+        float min = first;
+        float max = first;
+        double sum = first;
+
+        for (size_t i = 1; i < size; ++i) {
+            float v = get_value(i);
+            if (v < min) {
+                min = v;
+            }
+            if (v > max) {
+                max = v;
+            }
+            sum += v;
+        }
+        double mean = sum / size;
+
+        std::cout << std::right << std::setw(6) << type_name << std::right << std::setw(12) << "First" << std::setw(12)
+                  << "Min" << std::setw(12) << "Max" << std::setw(12) << "Mean" << std::endl;
+        std::cout << std::right << std::setw(6) << "" << std::right << std::setw(12) << first << std::setw(12) << min
+                  << std::setw(12) << max << std::setw(12) << mean << std::endl;
+    };
+
     switch (tensor.get_element_type()) {
-        case ov::element::f32:
-            std::cout << *(tensor.data<float>()) << std::endl;
-            std::cout << checksum(tensor.data(), tensor.get_byte_size()) << std::endl;
-            break;
-        case ov::element::f16:
-            std::cout << *(tensor.data<ov::float16>()) << std::endl;
-            std::cout << checksum(tensor.data(), tensor.get_byte_size()) << std::endl;
-            break;
-        default:
-            break;
+    case ov::element::f32: {
+        const float* data = tensor.data<float>();
+        size_t size = tensor.get_size();
+        print_float_stats("[f32]", size, [data](size_t i) { return data[i]; });
+        break;
+    }
+    case ov::element::f16: {
+        const ov::float16* data = tensor.data<ov::float16>();
+        size_t size = tensor.get_size();
+        print_float_stats("[f16]", size, [data](size_t i) { return static_cast<float>(data[i]); });
+        break;
+    }
+    default:
+        break;
     }
 }
 

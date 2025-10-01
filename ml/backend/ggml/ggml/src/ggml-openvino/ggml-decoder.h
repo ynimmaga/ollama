@@ -4,8 +4,10 @@
 #include <map>
 #include <memory>
 #include <openvino/core/partial_shape.hpp>
+#include <optional>
 #include <vector>
 
+#include "ggml-quants.hpp"
 #include "ggml.h"
 #include "openvino/decoder.hpp"
 
@@ -17,10 +19,11 @@ public:
 
     // Node decoder, called in GgmlOvDecoder::visit_subgraph
     GgmlOvDecoder(struct ggml_tensor* node, struct ggml_cgraph* cgraph, bool is_static, bool is_first_token,
-                  int context_size, int num_heads, int num_heads_kv, int head_size);
+                  int context_size, int context_size_swa, int num_heads, int num_heads_kv, int head_size,
+                  const std::vector<int>& swa_layers);
 
     // Naive graph decoder
-    GgmlOvDecoder(struct ggml_cgraph* cgraph);
+    GgmlOvDecoder(struct ggml_cgraph* cgraph, std::map<std::string, std::shared_ptr<ov::Node>>& model_weights);
 
     virtual ov::Any get_attribute(const std::string& name) const override {
         return nullptr;
@@ -99,6 +102,12 @@ public:
 
     virtual int get_context_size() const override { return m_context_size; }
 
+    virtual int get_context_size_swa() const override { return m_context_size_swa; }
+
+    virtual int is_swa_layer(int layer) const override {
+        return std::find(m_swa_layers.begin(), m_swa_layers.end(), layer) != m_swa_layers.end();
+    }
+
     virtual int get_num_heads() const override { return m_num_heads; }
 
     virtual int get_num_heads_kv() const override { return m_num_heads_kv; }
@@ -115,8 +124,12 @@ public:
 
     ov::PartialShape get_graph_input_shape(const ggml_tensor* src) const;
 
-    static std::shared_ptr<ov::Node> create_weight_node(ggml_tensor* tensor);
-    static std::map<std::string, std::shared_ptr<ov::Node>> create_weight_nodes(struct ggml_cgraph* cgraph);
+    static void dump_cgraph(const struct ggml_cgraph* cgraph, std::string& filename);
+
+    static std::shared_ptr<ov::Node> create_weight_node(ggml_tensor* tensor,
+                                                        std::optional<ExtraQuantType> requant_type = std::nullopt);
+    static std::map<std::string, std::shared_ptr<ov::Node>> create_weight_nodes(
+        struct ggml_cgraph* cgraph, std::map<ggml_type, ExtraQuantType> types_to_requantize = {});
 
     const ggml_tensor* get_tensor_used_op(const ggml_tensor* tensor) const;
     const ggml_tensor* get_tensor_from_name(const std::string& name) const;
@@ -126,7 +139,6 @@ public:
 private:
     void set_input_output(ggml_tensor* node, bool naive = false);
     void add_extra_inputs();
-    static void dump_cgraph(const struct ggml_cgraph* cgraph, std::string& filename);
     static std::vector<size_t> get_shape(const ggml_tensor* tensor);
     static std::vector<size_t> get_stride(const ggml_tensor* tensor);
     static ov::element::Type get_ov_type(const ggml_tensor* tensor);
@@ -151,13 +163,17 @@ private:
     std::map<std::string, std::shared_ptr<ov::Node>> m_model_weights;
     std::vector<std::string> m_model_output_names;
     int m_context_size;
+    int m_context_size_swa;
+    std::vector<int> m_swa_layers;
     int m_num_heads;
     int m_num_heads_kv;
     int m_head_size;
     int32_t* m_rope_params;
     std::vector<std::string> m_kv_names;
-    bool m_is_static;
+    bool m_is_static = false;
     bool m_is_first_token;
 };
 
 void print_tensor_address_map(const struct ggml_cgraph* cgraph);
+
+int extract_layer_from_name(const std::string& name);

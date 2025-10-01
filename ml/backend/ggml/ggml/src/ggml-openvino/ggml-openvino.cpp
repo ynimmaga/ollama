@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "ggml-backend-impl.h"
+#include "ggml-backend.h"
 #include "ggml-impl.h"
 #include "ggml-openvino/utils.h"
 #include "ggml.h"
@@ -173,14 +174,15 @@ static void ggml_backend_openvino_device_get_memory(ggml_backend_dev_t dev, size
     GGML_ASSERT(free != nullptr);
     GGML_ASSERT(total != nullptr);
     ggml_backend_openvino_device_context * ctx = (ggml_backend_openvino_device_context *)dev->context;
-    // Placeholder
     GGML_ASSERT(ctx->device >= 0);
     // ggml_openvino_set_device(ctx->device);
+    *total = 1;
+    *free = 1;
 }
 
 static enum ggml_backend_dev_type ggml_backend_openvino_device_get_type(ggml_backend_dev_t dev) {
     GGML_UNUSED(dev);
-    return GGML_BACKEND_DEVICE_TYPE_ACCEL;
+    return GGML_BACKEND_DEVICE_TYPE_GPU;
 }
 
 static void ggml_backend_openvino_device_get_props(ggml_backend_dev_t dev, ggml_backend_dev_props * props) {
@@ -247,17 +249,30 @@ static bool is_op_unsupported_case(const ggml_tensor* op) {
         const auto* op_params = op->op_params;
         memcpy(&scale, (const float*) op_params + 0, sizeof(float));
         memcpy(&max_bias, (const float*) op_params + 1, sizeof(float));
-        const uint32_t h = op->src[0]->ne[2];
-        const uint32_t n_head = op->src[0]->ne[0];
-        const uint32_t n_head_log2 = 1u << (uint32_t) floor(log2(n_head));
+        if (max_bias > 0) {
+            GGML_LOG_WARN("OpenVINO backend does not support SOFT_MAX with max_bias > 0\n");
+            return true;
+        }
+    }
 
-        const float m0 = powf(2.0f, -(max_bias) / n_head_log2);
-        const float m1 = powf(2.0f, -(max_bias / 2.0f) / n_head_log2);
-        const float slope =
-            (max_bias > 0.0f) ? h < n_head_log2 ? powf(m0, h + 1) : powf(m1, 2 * (h - n_head_log2) + 1) : 1.0f;
-
-        if (slope != 1.0f) {
-            GGML_LOG_WARN("OpenVINO backend does not support SOFT_MAX with slope != 1.0f\n");
+    if (op->op == GGML_OP_FLASH_ATTN_EXT) {
+        if (op->src[4] != nullptr) {
+            GGML_LOG_WARN("OpenVINO backend does not support FLASH_ATTN_EXT with sinks\n");
+            return true;
+        }
+        float scale = 1.0f;
+        float max_bias = 0.0f;
+        float logit_softcap = 0.0f;
+        const auto* op_params = op->op_params;
+        memcpy(&scale, (const float*) op_params + 0, sizeof(float));
+        memcpy(&max_bias, (const float*) op_params + 1, sizeof(float));
+        memcpy(&logit_softcap, (const float*) op_params + 2, sizeof(float));
+        if (max_bias > 0) {
+            GGML_LOG_WARN("OpenVINO backend does not support FLASH_ATTN_EXT with max_bias > 0\n");
+            return true;
+        }
+        if (logit_softcap != 0) {
+            GGML_LOG_WARN("OpenVINO backend does not support FLASH_ATTN_EXT with logit_softcap != 0\n");
             return true;
         }
     }
@@ -293,7 +308,7 @@ static bool is_op_unsupported_case(const ggml_tensor* op) {
             GGML_LOG_WARN("OpenVINO backend does not support ROPE with mode %d\n", mode);
             return true;
         }
-        if (n_dims != op->src[0]->ne[0]) {
+        if (n_dims != 0.0f && n_dims != op->src[0]->ne[0]) {
             GGML_LOG_WARN("OpenVINO backend does not support ROPE with n_dims %d != src[0]->ne[0] %ld\n",
                           n_dims,
                           op->src[0]->ne[0]);
@@ -304,12 +319,8 @@ static bool is_op_unsupported_case(const ggml_tensor* op) {
             return true;
         }
         float freq_scale;
-        memcpy(&freq_scale, op_params + 6, sizeof(float));
-        if (freq_scale != 1.0f) {
-            GGML_LOG_WARN("OpenVINO backend does not support ROPE with freq_scale %f != 1.0f\n", freq_scale);
-            return true;
-        }
         float ext_factor;
+        memcpy(&freq_scale, op_params + 6, sizeof(float));
         memcpy(&ext_factor, op_params + 7, sizeof(float));
         if (ext_factor != 0.0f) {
             GGML_LOG_WARN("OpenVINO backend does not support ROPE with ext_factor %f != 0.0f\n", ext_factor);
@@ -331,8 +342,17 @@ static bool is_op_unsupported_case(const ggml_tensor* op) {
 static bool ggml_backend_openvino_device_supports_op(ggml_backend_dev_t dev, const ggml_tensor* op) {
     GGML_ASSERT(dev->reg != nullptr);
 
-    static const std::set<ggml_type> supported_types{
-        GGML_TYPE_F32, GGML_TYPE_F16, GGML_TYPE_BF16, GGML_TYPE_I64, GGML_TYPE_I32};
+    static std::set<ggml_type> supported_types{GGML_TYPE_F32,
+                                               GGML_TYPE_F16,
+                                               GGML_TYPE_BF16,
+                                               GGML_TYPE_I64,
+                                               GGML_TYPE_I32,
+                                               GGML_TYPE_Q4_0,
+                                               GGML_TYPE_Q4_1,
+                                               GGML_TYPE_Q4_K,
+                                               GGML_TYPE_Q5_K,
+                                               GGML_TYPE_Q8_0,
+                                               GGML_TYPE_Q6_K};
 
     static const std::set<ggml_op> supported_ops{GGML_OP_NONE,
                                                  GGML_OP_ADD,
@@ -347,7 +367,8 @@ static bool ggml_backend_openvino_device_supports_op(ggml_backend_dev_t dev, con
                                                  GGML_OP_ROPE,
                                                  GGML_OP_RMS_NORM,
                                                  GGML_OP_SCALE,
-                                                 GGML_OP_SOFT_MAX,
+                                                 // softmax is not updated due to replaced by flash_attn_ext
+                                                 // GGML_OP_SOFT_MAX,
                                                  GGML_OP_SET_ROWS,
                                                  GGML_OP_FLASH_ATTN_EXT,
                                                  GGML_OP_CPY};
@@ -356,6 +377,7 @@ static bool ggml_backend_openvino_device_supports_op(ggml_backend_dev_t dev, con
     };
     static const std::set<ggml_glu_op> supported_glu_ops{
         GGML_GLU_OP_SWIGLU,
+        GGML_GLU_OP_GEGLU,
     };
 
     switch (op->op) {
@@ -393,12 +415,20 @@ static bool ggml_backend_openvino_device_supports_op(ggml_backend_dev_t dev, con
         return false;
     }
     for (int i = 0; i < GGML_MAX_SRC; i++) {
-        if (supported_types.find(op->type) == supported_types.end()) {
-            GGML_LOG_WARN("OpenVINO backend does not support tensor type %s\n", ggml_type_name(op->type));
+        auto* src = op->src[i];
+        if (src == nullptr) {
+            break;
+        }
+        if (supported_types.find(src->type) == supported_types.end()) {
+            GGML_LOG_WARN("OpenVINO backend does not support tensor type %s\n", ggml_type_name(src->type));
             return false;
         }
-        if (op->src[i] != nullptr && op->src[i]->ne[3] != 1) {
+        if (src->ne[3] != 1) {
             GGML_LOG_WARN("OpenVINO backend does not support tensors with ne[3] != 1\n");
+            return false;
+        }
+        if (ggml_is_quantized(src->type) && src->ne[2] != 1) {
+            GGML_LOG_WARN("OpenVINO backend does not support 3D quantized tensors\n");
             return false;
         }
     }

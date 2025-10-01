@@ -10,7 +10,8 @@ package llama
 #cgo CPPFLAGS: -I${SRCDIR}/llama.cpp/tools/mtmd
 #cgo CPPFLAGS: -I${SRCDIR}/llama.cpp/src
 #cgo CPPFLAGS: -I${SRCDIR}/../ml/backend/ggml/ggml/include
-#cgo LDFLAGS: -L$INTEL_OPENVINO_DIR/runtime/lib/intel64 -lopenvino -L${SRCDIR}/../build/lib/ollama -lggml-openvino -lstdc++
+//#cgo LDFLAGS: -L/home/icx-6338/ynimmaga/llama_cpp_June/openvino_toolkit_ubuntu20_2025.2.0.19140.c01cd93e24d_x86_64/runtime/lib/intel64 -lopenvino 
+#cgo LDFLAGS: -lopenvino -L${SRCDIR}/../build/lib/ollama -lggml-openvino -lstdc++
 
 #ifdef __cplusplus
 extern "C" {
