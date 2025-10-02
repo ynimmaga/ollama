@@ -3,6 +3,8 @@
 #include "ggml.h"
 #include "ggml-alloc.h"
 
+#define GGML_BACKEND_OPENVINO 3
+
 #ifdef GGML_BACKEND_SHARED
 #    if defined(_WIN32) && !defined(__MINGW32__)
 #        ifdef GGML_BACKEND_BUILD
@@ -133,7 +135,8 @@ extern "C" {
         // GPU device using dedicated memory
         GGML_BACKEND_DEVICE_TYPE_GPU,
         // accelerator devices intended to be used together with the CPU backend (e.g. BLAS or AMX)
-        GGML_BACKEND_DEVICE_TYPE_ACCEL
+        GGML_BACKEND_DEVICE_TYPE_ACCEL,
+        GGML_BACKEND_DEVICE_TYPE_OPENVINO
     };
 
     // functionality supported by the device
@@ -319,6 +322,9 @@ extern "C" {
 
     GGML_API void                 ggml_backend_sched_set_tensor_backend(ggml_backend_sched_t sched, struct ggml_tensor * node, ggml_backend_t backend);
     GGML_API ggml_backend_t       ggml_backend_sched_get_tensor_backend(ggml_backend_sched_t sched, struct ggml_tensor * node);
+
+    // Split graph without allocating it
+    GGML_API void                 ggml_backend_sched_split_graph(ggml_backend_sched_t sched, struct ggml_cgraph * graph);
 
     // Allocate and compute graph on the backend scheduler
     GGML_API bool                 ggml_backend_sched_alloc_graph(ggml_backend_sched_t sched, struct ggml_cgraph * graph); // returns success

@@ -484,6 +484,8 @@ func (b *Backend) Load(ctx context.Context, progress func(float32)) error {
 		gpuLayers++
 	case C.GGML_BACKEND_DEVICE_TYPE_ACCEL:
 		slog.Info("offloading output layer to ACCEL")
+        case C.GGML_BACKEND_DEVICE_TYPE_OPENVINO:
+                slog.Info("offloading output layer to OPENVINO")
 	}
 	slog.Info(fmt.Sprintf("offloaded %d/%d layers to GPU", gpuLayers, len(b.layers)+1))
 
