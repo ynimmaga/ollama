@@ -69,6 +69,10 @@
 #include "ggml-cann.h"
 #endif
 
+#ifdef GGML_USE_OPENVINO
+#include "ggml-openvino.h"
+#endif
+
 // disable C++17 deprecation warning for std::codecvt_utf8
 #if defined(__clang__)
 #    pragma clang diagnostic push
@@ -219,6 +223,9 @@ struct ggml_backend_registry {
 #endif
 #ifdef GGML_USE_RPC
         register_backend(ggml_backend_rpc_reg());
+#endif
+#ifdef GGML_USE_OPENVINO
+        register_backend(ggml_backend_openvino_reg());
 #endif
 #ifdef GGML_USE_CPU
         register_backend(ggml_backend_cpu_reg());
@@ -417,7 +424,7 @@ ggml_backend_t ggml_backend_init_by_name(const char * name, const char * params)
 }
 
 ggml_backend_t ggml_backend_init_by_type(enum ggml_backend_dev_type type, const char * params) {
-    ggml_backend_dev_t dev = ggml_backend_dev_by_type(type);
+    ggml_backend_dev_t dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_OPENVINO);
     if (!dev) {
         return nullptr;
     }
@@ -617,6 +624,7 @@ void ggml_backend_load_all_from_path(const char * dir_path) {
     ggml_backend_load_best("opencl", silent, dir_path);
     ggml_backend_load_best("musa", silent, dir_path);
     ggml_backend_load_best("cpu", silent, dir_path);
+    ggml_backend_load_best("openvino", silent, dir_path);
     // check the environment variable GGML_BACKEND_PATH to load an out-of-tree backend
     const char * backend_path = std::getenv("GGML_BACKEND_PATH");
     if (backend_path) {

@@ -178,8 +178,8 @@ extern "C" {
         LLAMA_ATTENTION_TYPE_CAUSAL      = 0,
         LLAMA_ATTENTION_TYPE_NON_CAUSAL  = 1,
     };
-
-    enum llama_flash_attn_type {
+ 
+     enum llama_flash_attn_type {
         LLAMA_FLASH_ATTN_TYPE_AUTO     = -1,
         LLAMA_FLASH_ATTN_TYPE_DISABLED = 0,
         LLAMA_FLASH_ATTN_TYPE_ENABLED  = 1,
@@ -313,6 +313,9 @@ extern "C" {
         enum llama_pooling_type      pooling_type;      // whether to pool (sum) embedding results by sequence id
         enum llama_attention_type    attention_type;    // attention type to use for embeddings
         enum llama_flash_attn_type   flash_attn_type;   // when to enable Flash Attention
+
+        int backend_type;
+        int device_index;
 
         // ref: https://github.com/ggml-org/llama.cpp/pull/2054
         float    rope_freq_base;   // RoPE base frequency, 0 = from model
