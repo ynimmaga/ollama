@@ -1,0 +1,28 @@
+diff --git a/ml/backend/ggml/ggml/src/CMakeLists.txt b/ml/backend/ggml/ggml/src/CMakeLists.txt
+index 4b3e5efb..b9b8a2f7 100644
+--- a/ml/backend/ggml/ggml/src/CMakeLists.txt
++++ b/ml/backend/ggml/ggml/src/CMakeLists.txt
+@@ -340,7 +344,7 @@ if (GGML_CPU_ALL_VARIANTS)
+         ggml_add_cpu_backend_variant(haswell      SSE42 AVX F16C AVX2 BMI2 FMA)
+         ggml_add_cpu_backend_variant(skylakex     SSE42 AVX F16C AVX2 BMI2 FMA AVX512)
+         ggml_add_cpu_backend_variant(icelake      SSE42 AVX F16C AVX2 BMI2 FMA AVX512 AVX512_VBMI AVX512_VNNI)
+-        ggml_add_cpu_backend_variant(alderlake    SSE42 AVX F16C AVX2 BMI2 FMA AVX_VNNI)
++        #ggml_add_cpu_backend_variant(alderlake    SSE42 AVX F16C AVX2 BMI2 FMA AVX_VNNI)
+     elseif(GGML_SYSTEM_ARCH STREQUAL "ARM")
+         if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+             # Many of these features are optional so we build versions with popular
+diff --git a/ml/backend/ggml/ggml/src/ggml-openvino/ggml-openvino.cpp b/ml/backend/ggml/ggml/src/ggml-openvino/ggml-openvino.cpp
+index 1234567..abcdef8 100644
+--- a/ml/backend/ggml/ggml/src/ggml-openvino/ggml-openvino.cpp
++++ b/ml/backend/ggml/ggml/src/ggml-openvino/ggml-openvino.cpp
+@@ -55,7 +55,7 @@ static const char * ggml_backend_openvino_get_name(ggml_backend_t backend) {
+     GGML_UNUSED(backend);
+ }
+ 
+-static enum ggml_status ggml_backend_openvino_graph_compute(ggml_backend_t backend, ggml_cgraph * cgraph) {
++static enum ggml_status ggml_backend_openvino_graph_compute(ggml_backend_t backend, ggml_cgraph * cgraph, int) {
+     openvino_frontend_compute(backend, cgraph);
+ 
+     return GGML_STATUS_SUCCESS;
+
+
