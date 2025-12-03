@@ -106,8 +106,7 @@ We need to switch between msys2 and command prompt terminals for the build steps
 
 ### Install MSYS2 terminal and set up
 
-Download and install from [msys2.org](https://msys2.org)
-Open the "MSYS2 UCRT64" terminal and install dependencies
+Download and install from [msys2.org](https://msys2.org) and open the "MSYS2 UCRT64" terminal to install dependencies
 ```
 pacman -S mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-make base-devel rsync git mingw-w64-ucrt-x86_64-go mingw-w64-ucrt-x86_64-cmake
 ```
@@ -170,9 +169,11 @@ wget https://huggingface.co/MaziyarPanahi/Llama-3.2-1B-Instruct-GGUF/resolve/mai
 ```
 
 ### Create Modelfile and add the below text:
+
 ```bash
 FROM ./Llama-3.2-1B-Instruct.fp16.gguf
 ```
+
 ### Start Ollama server and run inference
 
 ```bash
