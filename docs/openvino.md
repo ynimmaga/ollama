@@ -72,7 +72,7 @@ go mod tidy
 go build .
 ```
 
-### Download models for testing:
+### Download models for testing
 
 ```bash
 # Download model file: Llama-3.2-1B-Instruct.fp16.gguf
@@ -80,7 +80,7 @@ wget https://huggingface.co/MaziyarPanahi/Llama-3.2-1B-Instruct-GGUF/resolve/mai
      -O Llama-3.2-1B-Instruct.fp16.gguf
 ```
 
-### Create Modelfile and add the below text:
+###  Create a file named 'Modelfile' and add the below line to the file:
 ```bash
 FROM ./Llama-3.2-1B-Instruct.fp16.gguf
 ```
@@ -147,6 +147,8 @@ cmake --build . --target INSTALL --config Release
 
 ### Build Ollama
 
+Now go back to the MSYS2 terminal and execute the following commands
+
 ```bash
 export INTEL_OPENVINO_DIR=<path to OpenVINO dir that has setupvars.bat>
 copy build\ml\backend\ggml\ggml\src\ggml-openvino\Release\ggml-openvino.lib .
@@ -160,7 +162,7 @@ go mod tidy
 go build .
 ```
 
-### Download models for testing:
+### Download models for testing
 
 ```bash
 # Download model file: Llama-3.2-1B-Instruct.fp16.gguf
@@ -168,7 +170,7 @@ wget https://huggingface.co/MaziyarPanahi/Llama-3.2-1B-Instruct-GGUF/resolve/mai
      -O Llama-3.2-1B-Instruct.fp16.gguf
 ```
 
-### Create Modelfile and add the below text:
+### Create a file named 'Modelfile' and add the below line to the file
 
 ```bash
 FROM ./Llama-3.2-1B-Instruct.fp16.gguf
