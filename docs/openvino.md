@@ -143,6 +143,8 @@ For building GGML OpenVINO backend, open a command prompt and first source the o
 mkdir build && cd build
 cmake .. -DGGML_OPENVINO=ON -DBUILD_SHARED_LIBS=OFF 
 cmake --build . --target INSTALL --config Release
+copy build\ml\backend\ggml\ggml\src\ggml-openvino\Release\ggml-openvino.lib .
+copy %INTEL_OPENVINO_DIR%\runtime\lib\intel64\Release\openvino.lib .
 ```
 
 ### Build Ollama
@@ -151,10 +153,7 @@ Now go back to the MSYS2 terminal and execute the following commands
 
 ```bash
 export INTEL_OPENVINO_DIR=<path to OpenVINO dir that has setupvars.bat>
-copy build\ml\backend\ggml\ggml\src\ggml-openvino\Release\ggml-openvino.lib .
-copy %INTEL_OPENVINO_DIR%\runtime\lib\intel64\Release\openvino.lib .
-
-set CGO_CXXFLAGS="-DGGML_USE_OPENVINO -I$INTEL_OPENVINO_DIR/runtime/include"
+export CGO_CXXFLAGS="-DGGML_USE_OPENVINO -I$INTEL_OPENVINO_DIR/runtime/include"
 export CGO_LDFLAGS="-L./ -lopenvino -lggml-openvino"
 
 go clean -cache
