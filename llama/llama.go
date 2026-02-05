@@ -136,6 +136,10 @@ func NewContextParams(numCtx int, batchSize int, numSeqMax int, threads int, fla
 	case ml.FlashAttentionAuto:
 		params.flash_attn_type = int32(C.LLAMA_FLASH_ATTN_TYPE_AUTO)
 	}
+
+        if os.Getenv("OLLAMA_FLASH_ATTENTION") == "1" {
+                params.flash_attn_type = C.LLAMA_FLASH_ATTN_TYPE_ENABLED
+        }
 	params.type_k = kvCacheTypeFromStr(strings.ToLower(kvCacheType))
 	params.type_v = kvCacheTypeFromStr(strings.ToLower(kvCacheType))
 

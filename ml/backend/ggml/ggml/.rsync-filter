@@ -30,4 +30,15 @@ include *.cuh
 include *.metal
 include *.comp
 include *.glsl
+include /include/ggml-openvino.h
+include /src/CMakeLists.txt
+include /src/models/**/CMakeLists.txt
+include /src/models/***
+include /common/***
+include /src/ggml-openvino/
+include /src/ggml-openvino/openvino/
+include /src/ggml-openvino/openvino/op/
+include /src/ggml-openvino/openvino/pass/
+include *.hpp
+include *.h
 hide *

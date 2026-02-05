@@ -1,0 +1,12 @@
+diff --git a/ml/backend/ggml/ggml/include/ggml-backend.h b/ml/backend/ggml/ggml/include/ggml-backend.h
+index 6ad583f0..6ebefbd1 100644
+--- a/ml/backend/ggml/ggml/include/ggml-backend.h
++++ b/ml/backend/ggml/ggml/include/ggml-backend.h
+@@ -158,6 +158,7 @@ extern "C" {
+         const char * description;
+         // device free memory in bytes
+         size_t memory_free;
++        const char* id;
+         // device total memory in bytes
+         size_t memory_total;
+         // device type

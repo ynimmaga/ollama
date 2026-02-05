@@ -1,0 +1,12 @@
+  GNU nano 4.8                                                 openvino_graph_compute_patch.patch
+diff --git a/ml/backend/ggml/ggml/src/ggml-openvino/ggml-openvino.cpp b/ml/backend/ggml/ggml/src/ggml-openvino/ggml-openvino.cpp
+--- a/ml/backend/ggml/ggml/src/ggml-openvino/ggml-openvino.cpp
++++ b/ml/backend/ggml/ggml/src/ggml-openvino/ggml-openvino.cpp
+@@ -636,7 +636,7 @@ static const char * ggml_backend_openvino_get_name(ggml_backend_t backend) {
+     GGML_UNUSED(backend);
+ }
+
+-static enum ggml_status ggml_backend_openvino_graph_compute(ggml_backend_t backend, ggml_cgraph * cgraph) {
++static enum ggml_status ggml_backend_openvino_graph_compute(ggml_backend_t backend, ggml_cgraph * cgraph, int) {
+     return ov_graph_compute(cgraph);
+     GGML_UNUSED(backend);
