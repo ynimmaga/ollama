@@ -12,5 +12,6 @@ patch -p1 < 0024-GPU-discovery-enhancements.patch
 patch -p1 < add_device_patch.patch
 patch -p1 < graph_compute_patch.patch
 
+#For ml/backend/ggml/ggml/src/CMakeLists.txt
 #comment out the alderlake and amx lines
 #comment out mem_hip and mem_nvml
