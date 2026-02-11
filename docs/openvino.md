@@ -99,91 +99,134 @@ OLLAMA_FLASH_ATTENTION=1 ./ollama run llama3.2-1b-f16
 
 ## Build Ollama with OpenVINO Backend on Windows
 
-Once OpenVINO is downloaded on windows, follow the below instructions. 
-(Note: The instructions need to be streamlined and cleaned up further)
+### Prerequisites
 
-We need to switch between msys2 and command prompt terminals for the build steps.
+- Follow the guide to install OpenVINO Runtime from an archive file: [Windows](https://docs.openvino.ai/2025/get-started/install-openvino/install-openvino-archive-windows.html)
+- **OpenCL:**
+     - Install OpenCL using [oneAPI Base Toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html)
+     - Download cl2.hpp and opencl.hpp from [OpenCL-CLHPP](https://github.com/KhronosGroup/OpenCL-CLHPP/tree/main/include/CL) at paste at following path:
+     ```powershell
+     C:\~\oneAPI\compiler\latest\include\CL\
+     ```
+- We need to switch between msys2 and command prompt terminals for the build steps. Download and install from [msys2.org](https://msys2.org).
 
-### Install MSYS2 terminal and set up
+### 1. Open "MSYS2 UCRT64" terminal to install dependencies
 
-Download and install from [msys2.org](https://msys2.org) and open the "MSYS2 UCRT64" terminal to install dependencies
-```
+- Use the below command to install dependencies
+```bash
 pacman -S mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-make base-devel rsync git mingw-w64-ucrt-x86_64-go mingw-w64-ucrt-x86_64-cmake
 ```
 
-Set GOROOT for MSYS2's native Go and verify the installation by checking the version
-```
+- Set GOROOT for MSYS2's native Go and verify the installation by checking the version
+```bash
 export GOROOT=/ucrt64/lib/go
 export PATH=$GOROOT/bin:$PATH
 go version
 ```
 
-### Clone Ollama
+### 2. Clone Ollama
 
-Clone the OpenVINO-enabled Ollama fork from MSYS2 terminal:
+Clone the OpenVINO-enabled Ollama fork from "MSYS2 UCRT64" terminal:
 
 ```bash
 git clone https://github.com/ynimmaga/ollama.git
 cd ollama
-git checkout dev_backend_openvino
+git checkout ov_backend
 ```
 
-### Vendor the required OpenVINO patches
+### 3. Vendor the required OpenVINO patches
 
+- Login to git with username and email
+```bash
+git config --global user.name "Your Name"
+git config --global user.email “you@example.com”
 ```
-git apply openvino_pre_sync_patch.patch
-make -f Makefile-openvino.sync all
-git apply openvino_post_sync_patch.patch
+
+- verify
+```bash
+git config --global --list
 ```
 
-### Build GGML OpenVINO Backend and Add to the Library path
+- Apply patch now
+```bash
+./run_ov.sh
+```
 
-For building GGML OpenVINO backend, open a command prompt and first source the openvino variables using `setupvars.bat` and then do the following from the `Ollama` directory:
+- Edit manually:
+```powershell
+Find ~/ml/backend/ggml/ggml/src/CMakeLists.txt
+#comment out mem_hip.cpp and mem_nvml.cpp
+```
+
+### 4. Build GGML OpenVINO Backend and Add to the Library path
+
+For building GGML OpenVINO backend, open x64 Native Tools Command Prompt at `ollama` directory
+
+- Source OpenVINO variables using
+     ```bash
+     "c:\Program Files (x86)\Intel\<openvino_toolkit_windows_folder>\setupvars.bat"
+     ```
+- Source OpenCL variables from oneAPI using
+     ```bash
+     "c:\Program Files (x86)\Intel\oneAPI\setvars.bat"
+     ```
+
 ```bash
 mkdir build && cd build
-cmake .. -DGGML_OPENVINO=ON -DBUILD_SHARED_LIBS=OFF 
+cmake .. -G "Visual Studio 17 2022" -A x64 -DGGML_OPENVINO=ON -DGGML_VULKAN=OFF -DVulkan_FOUND=OFF -DCMAKE_DISABLE_FIND_PACKAGE_Vulkan=ON -DBUILD_SHARED_LIBS=OFF
 cmake --build . --target INSTALL --config Release
-copy build\ml\backend\ggml\ggml\src\ggml-openvino\Release\ggml-openvino.lib .
-copy %INTEL_OPENVINO_DIR%\runtime\lib\intel64\Release\openvino.lib .
+copy "ml\backend\ggml\ggml\src\ggml-openvino\Release\ggml-openvino.lib" .
+copy "%INTEL_OPENVINO_DIR%\runtime\lib\intel64\Release\openvino.lib" .
 ```
 
-### Build Ollama
+### 5. Build Ollama
 
-Now go back to the MSYS2 terminal and execute the following commands
+- Now go back to the "MSYS2 UCRT64" terminal and execute the following commands:
+     ```bash
+     export INTEL_OPENVINO_DIR=<path to OpenVINO dir that has setupvars.bat>
+     # but substitute “PROGRA~2” for “Program Files (x86)” in the path
+     export CGO_CXXFLAGS="-DGGML_USE_OPENVINO -I$INTEL_OPENVINO_DIR/runtime/include"
+     export CGO_LDFLAGS="-L./ -lopenvino -lggml-openvino"
+     export CC=cl
+     export CXX=cl
+     export CGO_ENABLED=1
+     go clean -cache -modcache
+     
+     export PATH="/C/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64:$PATH"
+     pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-go
+     ```
 
+- Now open “MSYS MINGW64” and check for gcc and g++
 ```bash
-export INTEL_OPENVINO_DIR=<path to OpenVINO dir that has setupvars.bat>
-export CGO_CXXFLAGS="-DGGML_USE_OPENVINO -I$INTEL_OPENVINO_DIR/runtime/include"
-export CGO_LDFLAGS="-L./ -lopenvino -lggml-openvino"
-
+which gcc
+Which g++
+```
+- Finally build ollama.exe
+```bash
+export PATH="/mingw64/bin:$PATH"
 go clean -cache
+cd /home/Administrator/ollama
 go mod tidy
 go build .
 ```
 
-### Download models for testing
 
-```bash
-# Download model file: Llama-3.2-1B-Instruct.fp16.gguf
-wget https://huggingface.co/MaziyarPanahi/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct.fp16.gguf \
-     -O Llama-3.2-1B-Instruct.fp16.gguf
+### To run models
+
+- Create a file named 'Modelfile.txt' in `ollama` folder and add below line to the file
+```powershell
+FROM <model_directory>\MODEL.gguf
 ```
 
-### Create a file named 'Modelfile' and add the below line to the file
+- Open a command prompt and start a ollama server instance
+     ```powershell
+     set OLLAMA_FLASH_ATTENTION=1
+     ollama.exe serve
+     ```
 
-```bash
-FROM ./Llama-3.2-1B-Instruct.fp16.gguf
-```
-
-### Start Ollama server and run inference
-
-```bash
-cd $ollama_root
-OLLAMA_FLASH_ATTENTION=1 ./ollama.exe serve
-```
-
-Open another terminal, create, and run Ollama model
-```bash
-./ollama.exe create llama3.2-1b-f16 -f Modelfile
-OLLAMA_FLASH_ATTENTION=1 ./ollama.exe run llama3.2-1b-f16
-```
+- Open another terminal, create, and run Ollama model
+     ```powershell
+     ollama.exe create TEST -f Modelfile.txt
+     set OLLAMA_FLASH_ATTENTION=1
+     ollama.exe run TEST
+     ```
