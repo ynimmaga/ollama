@@ -106,11 +106,9 @@ OLLAMA_FLASH_ATTENTION=1 ./ollama run llama3.2-1b-f16
 - Follow the guide to install OpenVINO Runtime from an archive file: [Windows](https://docs.openvino.ai/2025/get-started/install-openvino/install-openvino-archive-windows.html)
 - **OpenCL:**
      - Install OpenCL using [oneAPI Base Toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html)
-     - Download cl2.hpp and opencl.hpp from [OpenCL-CLHPP](https://github.com/KhronosGroup/OpenCL-CLHPP/tree/main/include/CL) and paste at following path:
-          ```powershell
-          C:\~\oneAPI\compiler\latest\include\CL\
-          ```
-- We need to switch between MSYS2 and command prompt terminals for the build steps. Download and install [msys2.org](https://msys2.org).
+     - Download cl2.hpp and opencl.hpp from [OpenCL-CLHPP](https://github.com/KhronosGroup/OpenCL-CLHPP/tree/main/include/CL) and paste at following path: `C:\~\oneAPI\compiler\latest\include\CL\`
+- Build requires use of both MSYS2 and x64 Native Tools Command Prompt terminals. Download and install [msys2.org](https://msys2.org).
+
 
 ### 1. Open "MSYS2 UCRT64" terminal to install dependencies
 
@@ -126,6 +124,7 @@ OLLAMA_FLASH_ATTENTION=1 ./ollama run llama3.2-1b-f16
      go version
      ```
 
+
 ### 2. Clone Ollama
 
 Clone the OpenVINO-enabled Ollama fork from "MSYS2 UCRT64" terminal:
@@ -135,6 +134,7 @@ cd ollama
 git checkout ov_backend
 ```
 
+
 ### 3. Vendor the required OpenVINO patches
 
 - Login to git with username and email
@@ -142,33 +142,30 @@ git checkout ov_backend
      git config --global user.name "Your Name"
      git config --global user.email “you@example.com”
      ```
-
 - verify
      ```bash
      git config --global --list
      ```
-
 - Apply patch now
      ```bash
      ./run_ov.sh
      ```
-
 - Edit manually:
      ```powershell
      Find ~/ml/backend/ggml/ggml/src/CMakeLists.txt
      #comment out mem_hip.cpp and mem_nvml.cpp
      ```
 
+
 ### 4. Build GGML OpenVINO backend and Add to the Library path
 
-For building GGML OpenVINO backend, open x64 Native Tools Command Prompt at `ollama` directory
+For building GGML OpenVINO backend, 
 
-- Source OpenVINO and OpenCL variables using
+- Open x64 Native Tools Command Prompt at `ollama` directory, source OpenVINO and OpenCL variables using
      ```bash
      "c:\Program Files (x86)\Intel\<openvino_toolkit_windows_folder>\setupvars.bat"
      "c:\Program Files (x86)\Intel\oneAPI\setvars.bat"
      ```
-
 - To build OpenVINO backend
      ```bash
      mkdir build && cd build
@@ -177,6 +174,7 @@ For building GGML OpenVINO backend, open x64 Native Tools Command Prompt at `oll
      copy "ml\backend\ggml\ggml\src\ggml-openvino\Release\ggml-openvino.lib" .
      copy "%INTEL_OPENVINO_DIR%\runtime\lib\intel64\Release\openvino.lib" .
      ```
+
 
 ### 5. Build Ollama
 
@@ -194,14 +192,7 @@ For building GGML OpenVINO backend, open x64 Native Tools Command Prompt at `oll
      export PATH="/C/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64:$PATH"
      pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-go
      ```
-
-- Now open “MSYS MINGW64” and check for gcc and g++
-     ```bash
-     which gcc
-     Which g++
-     ```
-     
-- Finally build ollama.exe
+- Now open “MSYS MINGW64” and build ollama.exe
      ```bash
      export PATH="/mingw64/bin:$PATH"
      go clean -cache
@@ -211,7 +202,7 @@ For building GGML OpenVINO backend, open x64 Native Tools Command Prompt at `oll
      ```
 
 
-### To run models
+### 6. To run models
 
 - Create a file named 'Modelfile.txt' in `ollama` folder and add below line to the file
      ```powershell
