@@ -101,6 +101,8 @@ OLLAMA_FLASH_ATTENTION=1 ./ollama run llama3.2-1b-f16
 
 ### Prerequisites
 
+- Download Microsoft.VisualStudio.2022.BuildTools: [Visual_Studio_Build_Tools](https://aka.ms/vs/17/release/vs_BuildTools.exe) Select "Desktop development with C++" under workloads
+- Install git
 - Follow the guide to install OpenVINO Runtime from an archive file: [Windows](https://docs.openvino.ai/2025/get-started/install-openvino/install-openvino-archive-windows.html)
 - **OpenCL:**
      - Install OpenCL using [oneAPI Base Toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html)
