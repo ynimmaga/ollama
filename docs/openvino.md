@@ -101,35 +101,34 @@ OLLAMA_FLASH_ATTENTION=1 ./ollama run llama3.2-1b-f16
 
 ### Prerequisites
 
-- Download Microsoft.VisualStudio.2022.BuildTools: [Visual_Studio_Build_Tools](https://aka.ms/vs/17/release/vs_BuildTools.exe) Select "Desktop development with C++" under workloads
+- Download Microsoft.VisualStudio.2022.BuildTools: [Visual_Studio_Build_Tools](https://aka.ms/vs/17/release/vs_BuildTools.exe). Select "Desktop development with C++" under workloads
 - Install git
 - Follow the guide to install OpenVINO Runtime from an archive file: [Windows](https://docs.openvino.ai/2025/get-started/install-openvino/install-openvino-archive-windows.html)
 - **OpenCL:**
      - Install OpenCL using [oneAPI Base Toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html)
-     - Download cl2.hpp and opencl.hpp from [OpenCL-CLHPP](https://github.com/KhronosGroup/OpenCL-CLHPP/tree/main/include/CL) at paste at following path:
-     ```powershell
-     C:\~\oneAPI\compiler\latest\include\CL\
-     ```
-- We need to switch between msys2 and command prompt terminals for the build steps. Download and install from [msys2.org](https://msys2.org).
+     - Download cl2.hpp and opencl.hpp from [OpenCL-CLHPP](https://github.com/KhronosGroup/OpenCL-CLHPP/tree/main/include/CL) and paste at following path:
+          ```powershell
+          C:\~\oneAPI\compiler\latest\include\CL\
+          ```
+- We need to switch between MSYS2 and command prompt terminals for the build steps. Download and install [msys2.org](https://msys2.org).
 
 ### 1. Open "MSYS2 UCRT64" terminal to install dependencies
 
 - Use the below command to install dependencies
-```bash
-pacman -S mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-make base-devel rsync git mingw-w64-ucrt-x86_64-go mingw-w64-ucrt-x86_64-cmake
-```
+     ```bash
+     pacman -S mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-make base-devel rsync git mingw-w64-ucrt-x86_64-go mingw-w64-ucrt-x86_64-cmake
+     ```
 
 - Set GOROOT for MSYS2's native Go and verify the installation by checking the version
-```bash
-export GOROOT=/ucrt64/lib/go
-export PATH=$GOROOT/bin:$PATH
-go version
-```
+     ```bash
+     export GOROOT=/ucrt64/lib/go
+     export PATH=$GOROOT/bin:$PATH
+     go version
+     ```
 
 ### 2. Clone Ollama
 
 Clone the OpenVINO-enabled Ollama fork from "MSYS2 UCRT64" terminal:
-
 ```bash
 git clone https://github.com/ynimmaga/ollama.git
 cd ollama
@@ -139,47 +138,45 @@ git checkout ov_backend
 ### 3. Vendor the required OpenVINO patches
 
 - Login to git with username and email
-```bash
-git config --global user.name "Your Name"
-git config --global user.email “you@example.com”
-```
+     ```bash
+     git config --global user.name "Your Name"
+     git config --global user.email “you@example.com”
+     ```
 
 - verify
-```bash
-git config --global --list
-```
+     ```bash
+     git config --global --list
+     ```
 
 - Apply patch now
-```bash
-./run_ov.sh
-```
+     ```bash
+     ./run_ov.sh
+     ```
 
 - Edit manually:
-```powershell
-Find ~/ml/backend/ggml/ggml/src/CMakeLists.txt
-#comment out mem_hip.cpp and mem_nvml.cpp
-```
+     ```powershell
+     Find ~/ml/backend/ggml/ggml/src/CMakeLists.txt
+     #comment out mem_hip.cpp and mem_nvml.cpp
+     ```
 
-### 4. Build GGML OpenVINO Backend and Add to the Library path
+### 4. Build GGML OpenVINO backend and Add to the Library path
 
 For building GGML OpenVINO backend, open x64 Native Tools Command Prompt at `ollama` directory
 
-- Source OpenVINO variables using
+- Source OpenVINO and OpenCL variables using
      ```bash
      "c:\Program Files (x86)\Intel\<openvino_toolkit_windows_folder>\setupvars.bat"
-     ```
-- Source OpenCL variables from oneAPI using
-     ```bash
      "c:\Program Files (x86)\Intel\oneAPI\setvars.bat"
      ```
 
-```bash
-mkdir build && cd build
-cmake .. -G "Visual Studio 17 2022" -A x64 -DGGML_OPENVINO=ON -DGGML_VULKAN=OFF -DVulkan_FOUND=OFF -DCMAKE_DISABLE_FIND_PACKAGE_Vulkan=ON -DBUILD_SHARED_LIBS=OFF
-cmake --build . --target INSTALL --config Release
-copy "ml\backend\ggml\ggml\src\ggml-openvino\Release\ggml-openvino.lib" .
-copy "%INTEL_OPENVINO_DIR%\runtime\lib\intel64\Release\openvino.lib" .
-```
+- To build OpenVINO backend
+     ```bash
+     mkdir build && cd build
+     cmake .. -G "Visual Studio 17 2022" -A x64 -DGGML_OPENVINO=ON -DGGML_VULKAN=OFF -DVulkan_FOUND=OFF -DCMAKE_DISABLE_FIND_PACKAGE_Vulkan=ON -DBUILD_SHARED_LIBS=OFF
+     cmake --build . --target INSTALL --config Release
+     copy "ml\backend\ggml\ggml\src\ggml-openvino\Release\ggml-openvino.lib" .
+     copy "%INTEL_OPENVINO_DIR%\runtime\lib\intel64\Release\openvino.lib" .
+     ```
 
 ### 5. Build Ollama
 
@@ -199,26 +196,27 @@ copy "%INTEL_OPENVINO_DIR%\runtime\lib\intel64\Release\openvino.lib" .
      ```
 
 - Now open “MSYS MINGW64” and check for gcc and g++
-```bash
-which gcc
-Which g++
-```
+     ```bash
+     which gcc
+     Which g++
+     ```
+     
 - Finally build ollama.exe
-```bash
-export PATH="/mingw64/bin:$PATH"
-go clean -cache
-cd /home/Administrator/ollama
-go mod tidy
-go build .
-```
+     ```bash
+     export PATH="/mingw64/bin:$PATH"
+     go clean -cache
+     cd /home/Administrator/ollama
+     go mod tidy
+     go build .
+     ```
 
 
 ### To run models
 
 - Create a file named 'Modelfile.txt' in `ollama` folder and add below line to the file
-```powershell
-FROM <model_directory>\MODEL.gguf
-```
+     ```powershell
+     FROM <model_directory>\MODEL.gguf
+     ```
 
 - Open a command prompt and start a ollama server instance
      ```powershell
