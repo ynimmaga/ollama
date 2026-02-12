@@ -1,0 +1,141 @@
+UPSTREAM=https://github.com/ggml-org/llama.cpp.git
+WORKDIR=llama/vendor
+BASE_COMMIT=3cfa9c3f125763305b4226bc032f1954f08990dc
+PR_ID=15307
+
+# --- CRITICAL FIX: Mark sync targets as PHONY so they always run ---
+.PHONY: all help sync checkout apply-patches clean \
+        llama/llama.cpp ml/backend/ggml/ggml
+
+# --- MAIN FLOW ---
+all: clean checkout apply-patches sync
+
+help:
+	@echo "Available targets:"
+	@echo "  all            Clean, Checkout, Apply Patches, and Sync"
+	@echo "  sync           Run rsync (forced)"
+	@echo "  checkout       Reset vendor repo and fetch PR $(PR_ID) via Git"
+
+# --- SYNC TARGETS ---
+
+sync: llama/build-info.cpp ml/backend/ggml/ggml/src/ggml-metal/ggml-metal-embed.metal
+
+llama/build-info.cpp: llama/build-info.cpp.in llama/llama.cpp
+	sed -e 's|@FETCH_HEAD@|$(PR_ID)|' <$< >$@
+
+ml/backend/ggml/ggml/src/ggml-metal/ggml-metal-embed.metal: ml/backend/ggml/ggml
+	go generate ./$(@D)
+
+# Sync llama.cpp root files
+llama/llama.cpp: llama/vendor
+	# 1. Run standard rsync
+	rsync -arvzc --delete -f "include LICENSE" -f "merge $@/.rsync-filter" $(addprefix $<,/LICENSE /) $@
+	
+	# 2. FORCE COPY src/models
+	@echo ">> Manually syncing src/models..."
+	@mkdir -p llama/llama.cpp/src/models
+	@cp -r llama/vendor/src/models/* llama/llama.cpp/src/models/
+
+	# 3. FORCE COPY src/CMakeLists.txt
+	@echo ">> Manually syncing src/CMakeLists.txt..."
+	@cp llama/vendor/src/CMakeLists.txt llama/llama.cpp/src/CMakeLists.txt
+
+	# 4. FIX FOR CGO: Generate a unity build file for models
+	# We create a single file in src/ that includes all models.
+	# CGO will see this file because it is in the root of the 'src' package.
+	@echo ">> Generating src/models-unity.cpp for CGO..."
+	@echo "// Auto-generated unity build file" > llama/llama.cpp/src/models-unity.cpp
+	@find llama/llama.cpp/src/models -name "*.cpp" | sort | \
+		sed 's|llama/llama.cpp/src/|#include "|' | \
+		sed 's/$$/"/' \
+		>> llama/llama.cpp/src/models-unity.cpp
+	
+	# 5. CLEANUP: Remove any old shims that cause duplicates
+	@rm -f llama/models_link.cpp
+
+# Sync llama.cpp root files
+#llama/llama.cpp: llama/vendor
+	# 1. Run standard rsync
+	#rsync -arvzc --delete -f "include LICENSE" -f "merge $@/.rsync-filter" $(addprefix $<,/LICENSE /) $@
+	
+	# 2. FORCE COPY src/models
+	#@echo ">> Manually syncing src/models..."
+	#@mkdir -p llama/llama.cpp/src/models
+	#@cp -r llama/vendor/src/models/* llama/llama.cpp/src/models/
+
+	# 3. FORCE COPY src/CMakeLists.txt
+	#@echo ">> Manually syncing src/CMakeLists.txt..."
+	#@cp llama/vendor/src/CMakeLists.txt llama/llama.cpp/src/CMakeLists.txt
+
+    # (REMOVED: Unity build generation. It is causing duplicate symbols.)
+
+# Sync GGML backend files (With OpenVINO fix)
+ml/backend/ggml/ggml: llama/vendor
+	# --- FIX: Robust OpenVINO Normalization ---
+	@echo ">> Checking for OpenVINO file mismatch..."
+	@mkdir -p llama/vendor/ggml/src
+	@mkdir -p llama/vendor/ggml/include
+	
+	# Move .cpp/.h files from root src/ to ggml/src/
+	@if ls llama/vendor/src/*openvino* 1> /dev/null 2>&1; then \
+		echo ">> Moving OpenVINO source files from src/ to ggml/src/..." ; \
+		mv llama/vendor/src/*openvino* llama/vendor/ggml/src/ ; \
+	fi
+	
+	# Move headers from root include/ to ggml/include/
+	@if ls llama/vendor/include/*openvino* 1> /dev/null 2>&1; then \
+		echo ">> Moving OpenVINO headers from include/ to ggml/include/..." ; \
+		mv llama/vendor/include/*openvino* llama/vendor/ggml/include/ ; \
+	fi
+	# ----------------------------------------------
+	rsync -arvzc --delete -f "include LICENSE" -f "merge $@/.rsync-filter" $(addprefix $<,/LICENSE /ggml/) $@
+
+# --- PATCHING TARGETS ---
+
+apply-patches:
+	@echo ">> Applying patches in order..."
+	@for patch in $$(ls llama/patches/*.patch | sort); do \
+		echo ">> Applying: $$(basename $$patch)"; \
+		if git -c user.name=nobody -c 'user.email=<>' -C $(WORKDIR) am -3 "$$(realpath $$patch)"; then \
+			echo "   [OK]"; \
+		else \
+			echo "   [FAIL] Skipping $$(basename $$patch)..."; \
+			git -C $(WORKDIR) am --abort; \
+		fi; \
+	done
+
+# --- CHECKOUT TARGETS ---
+
+checkout: $(WORKDIR)
+	# 1. Force Cleanup
+	git -C $(WORKDIR) am --abort || true
+	git -C $(WORKDIR) rebase --abort || true
+	git -C $(WORKDIR) reset --hard HEAD || true
+	git -C $(WORKDIR) clean -fd
+	
+	# 2. Reset to Base Commit
+	git -C $(WORKDIR) checkout -f $(BASE_COMMIT)
+	git -C $(WORKDIR) branch -D pr_$(PR_ID) 2>/dev/null || true
+
+	# 3. Fetch PR directly from GitHub
+	@echo ">> Fetching PR $(PR_ID) into local branch pr_$(PR_ID)..."
+	git -C $(WORKDIR) fetch origin pull/$(PR_ID)/head:pr_$(PR_ID)
+
+	# 4. Apply PR Content via Squash Merge
+	@echo ">> Merging PR content (Squash strategy)..."
+	@if ! git -C $(WORKDIR) merge --squash -X theirs pr_$(PR_ID); then \
+		echo ">> Merge returned status $$?. Assuming conflicts resolved by '-X theirs'."; \
+	fi
+	
+	# 5. COMMIT THE SQUASH
+	@echo ">> Committing the squash merge..."
+	git -C $(WORKDIR) commit -m "Squash merge of PR $(PR_ID)"
+
+$(WORKDIR):
+	git clone $(UPSTREAM) $(WORKDIR)
+
+clean:
+	@git -C $(WORKDIR) am --abort || true
+	@git -C $(WORKDIR) rebase --abort || true
+	@git -C $(WORKDIR) reset --hard HEAD || true
+	@git -C $(WORKDIR) clean -fd || true
